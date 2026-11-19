@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لعبة اكتشف الأشياء المتشابهة</title>
+<style>
+:root{--ink:#f7f9fc;--muted:#bdc9d8;--accent:#76e0c6;--bad:#ff8a8a}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font-family:Tahoma,Arial,sans-serif;background:radial-gradient(ellipse at top,#2b4260 0%,#101827 62%)}
+header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 3vw;border-bottom:1px solid #ffffff24;flex-wrap:wrap}
+h1{font-size:clamp(22px,2.6vw,38px);margin:0}.subtitle{color:var(--muted);font-size:15px;margin-top:6px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+button{font:700 15px Tahoma,Arial;border:0;border-radius:12px;padding:12px 16px;background:var(--accent);color:#102333;cursor:pointer}
+button.alt{background:#344b68;color:#fff;border:1px solid #ffffff26}
+button:hover{filter:brightness(1.1)}
+main{max-width:1600px;margin:auto;padding:18px 2.5vw 30px}
+.status{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;font-size:19px;margin:4px 0 8px}
+.status b{color:var(--accent)}
+.msg{min-height:34px;text-align:center;font-size:22px;font-weight:700;margin-bottom:14px}
+.msg.bad{color:var(--bad)}.msg.win{color:#ffd166;font-size:28px}
+.grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:11px}
+.card{aspect-ratio:1/1.05;position:relative;border-radius:16px;border:3px solid #ffffff28;background:linear-gradient(145deg,#2b405d,#1a2a40);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;user-select:none;box-shadow:0 8px 18px #0004;transition:transform .15s,border-color .15s,background .15s}
+.card:hover{transform:translateY(-3px);border-color:var(--accent)}
+.card .num{position:absolute;top:6px;right:9px;font-size:13px;color:#d5dfeb;font-weight:bold}
+.card .cover{font-size:clamp(28px,3.8vw,56px);line-height:1.1}
+.card .caption{font-size:clamp(11px,1.15vw,16px);font-weight:700;margin-top:5px}
+.card.open{background:linear-gradient(145deg,#f8fbff,#dce8f4);color:#16283d;border-color:#8db9d7}
+.card.open .num{color:#465a70}
+.card.correct{background:linear-gradient(145deg,#d9fff3,#a9efd9);border-color:#55d5ae;color:#123d35;cursor:default}
+.card.wrong{background:linear-gradient(145deg,#ffe3e3,#ffb7b7);border-color:#ff6b6b;color:#5a1414;animation:shake .4s}
+.card.peek{cursor:default}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.help{text-align:center;color:var(--muted);font-size:15px;line-height:1.9;margin:20px auto 0;max-width:900px}
+kbd{display:inline-block;direction:ltr;background:#334b68;color:#fff;border:1px solid #ffffff38;border-radius:7px;padding:2px 8px;font:700 14px Arial;margin:0 2px}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media(max-width:700px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}header{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+<header>
+ <div><h1>🔎 اكتشف الأشياء المتشابهة</h1><div class="subtitle">افتح أي بطاقة، ثم اعثر على نسخها الأربع واحدة بعد الأخرى دون أي خطأ</div></div>
+ <div class="controls">
+  <button id="closeAll">إغلاق الكل</button>
+  <button class="alt" id="peek">كشف الكل</button>
+  <button class="alt" id="newRound">جولة جديدة</button>
+  <button class="alt" id="full">ملء الشاشة</button>
+ </div>
+</header>
+<main>
+ <div class="status">
+  <div>تم العثور على: <b id="foundCount">٠</b> من ٤</div>
+  <div>المجموعات المكتملة: <b id="groups">٠</b> من ١٢</div>
+  <div>عدد الأخطاء: <b id="mistakes">٠</b></div>
+ </div>
+ <div class="msg" id="msg"></div>
+ <section class="grid" id="grid"></section>
+ <div class="help">
+  أول بطاقة تفتحها تحدد الشيء الذي عليك إيجاده (ولا يُعلَن اسمه). افتح بعدها البطاقات المشابهة لها: الصحيحة تبقى ظاهرة، والخاطئة تُغلق كل البطاقات وتبدأ من جديد.<br>
+  عند إكمال مجموعة من أربع بطاقات تبقى مفتوحة، ثم اختاروا شيئًا جديدًا وأكملوا حتى تنفتح اللوحة كاملة. الخطأ يغلق بطاقات المحاولة الحالية فقط.<br>
+  <kbd>C</kbd> إغلاق الكل &nbsp; <kbd>P</kbd> كشف الكل &nbsp; <kbd>N</kbd> جولة جديدة &nbsp; <kbd>F</kbd> ملء الشاشة
+ </div>
+</main>
+<script>
+const items=[
+ {e:'🍎',n:'تفاحة'},{e:'🐶',n:'كلب'},{e:'🚗',n:'سيارة'},{e:'🌹',n:'وردة'},
+ {e:'⚽',n:'كرة'},{e:'🍌',n:'موزة'},{e:'🐟',n:'سمكة'},{e:'🌙',n:'قمر'},
+ {e:'📚',n:'كتب'},{e:'🪑',n:'كرسي'},{e:'✈️',n:'طائرة'},{e:'🎈',n:'بالون'},
+ {e:'🐱',n:'قطة'},{e:'🍕',n:'بيتزا'},{e:'⌚',n:'ساعة'},{e:'🔑',n:'مفتاح'}
+];
+const COUNT=12; // عدد الأشياء المختلفة في كل جولة (×٤ بطاقات)
+let cards=[],open=new Set(),found=new Set(),done=new Set(),wrongIdx=-1,target=0,mistakes=0,locked=false,won=false,peeking=false,timer=null;
+const grid=document.getElementById('grid'),msg=document.getElementById('msg');
+const ar=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function setMsg(t,c=''){msg.textContent=t;msg.className='msg '+c;}
+function newRound(){
+ clearTimeout(timer);
+ const chosen=shuffle(items.slice()).slice(0,COUNT);
+ const deck=[];
+ chosen.forEach((o,t)=>{for(let k=0;k<4;k++)deck.push({type:t,e:o.e,n:o.n});});
+ cards=shuffle(deck);
+ target=null;
+ open.clear();found.clear();done.clear();wrongIdx=-1;mistakes=0;locked=false;won=false;peeking=false;
+ setMsg('');render();
+}
+function render(){
+ grid.innerHTML='';
+ cards.forEach((c,i)=>{
+  const show=peeking||open.has(i)||found.has(i)||done.has(i);
+  let cls='card';
+  if(show)cls+=' open';
+  if(found.has(i)||done.has(i))cls+=' correct';
+  if(i===wrongIdx)cls+=' wrong';
+  if(peeking)cls+=' peek';
+  const el=document.createElement('div');
+  el.className=cls;
+  el.innerHTML=`<span class="num">${ar(i+1)}</span><div class="cover">${show?c.e:'❔'}</div><div class="caption">${show?c.n:''}</div>`;
+  el.addEventListener('click',()=>pick(i));
+  grid.appendChild(el);
+ });
+ document.getElementById('foundCount').textContent=ar(found.size);
+ document.getElementById('groups').textContent=ar(done.size/4);
+ document.getElementById('mistakes').textContent=ar(mistakes);
+}
+function pick(i){
+ if(locked||won||peeking||found.has(i)||done.has(i)||open.has(i))return;
+ open.add(i);
+ if(target===null||cards[i].type===target){
+  if(target===null)target=cards[i].type;
+  found.add(i);
+  if(found.size===4){
+   found.forEach(k=>{done.add(k);open.delete(k);});
+   found.clear();target=null;
+   if(done.size===cards.length){
+    won=true;
+    setMsg(mistakes?'🎉 أحسنت! فتحتم اللوحة كاملة':'🏆 رائع! فتحتم اللوحة كاملة دون أي خطأ','win');
+   }else setMsg('✅ اكتملت المجموعة! اختاروا الشيء التالي','win');
+  }else setMsg('إجابة صحيحة! أكمل ✔');
+  render();
+ }else{
+  wrongIdx=i;locked=true;mistakes++;
+  setMsg('❌ خطأ! ستُغلق بطاقات هذه المحاولة فقط','bad');
+  render();
+  timer=setTimeout(()=>{open.clear();found.clear();wrongIdx=-1;target=null;locked=false;setMsg('ابدأ هذه المجموعة من جديد');render();},1400);
+ }
+}
+function closeAll(){
+ clearTimeout(timer);
+ open.clear();found.clear();done.clear();wrongIdx=-1;target=null;locked=false;won=false;peeking=false;
+ setMsg('');render();
+}
+function peek(){
+ if(peeking){peeking=false;document.getElementById('peek').textContent='كشف الكل';}
+ else{peeking=true;document.getElementById('peek').textContent='إخفاء الكل';}
+ render();
+}
+function fs(){document.fullscreenElement?document.exitFullscreen?.():document.documentElement.requestFullscreen?.();}
+document.addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey||e.altKey)return;
+ if(e.code==='KeyC'||e.key==='Escape')closeAll();
+ else if(e.code==='KeyP')peek();
+ else if(e.code==='KeyN')newRound();
+ else if(e.code==='KeyF')fs();
+});
+document.getElementById('closeAll').onclick=closeAll;
+document.getElementById('peek').onclick=peek;
+document.getElementById('newRound').onclick=newRound;
+document.getElementById('full').onclick=fs;
+newRound();
+</script>
+</body>
+</html>
